@@ -106,11 +106,17 @@ def load_data():
     # Remove features that are not useful
     df.drop(['sub_message', 'message'], axis=1, inplace=True)
 
+    # Separating the dataset into non-spam and spam
+    X_non_spam = df[df['label'] == 0]['clean_sub_message']
+    X_spam = df[df['label'] == 1]['clean_sub_message']
+
     # Text Vectorization
     vectorizer = TfidfVectorizer()
-    X = vectorizer.fit_transform(df['clean_sub_message'])
+    X_non_spam_vectorized = vectorizer.fit_transform(X_non_spam)
+    X_spam_vectorized = vectorizer.transform(X_spam)
 
-    print("Shape of dataset:", X.shape if X is not None else "None")
-    
-    return X.toarray()
+    print("Shape of dataset:", X_non_spam_vectorized.shape if X_non_spam_vectorized is not None else "None")
+    print("Shape of dataset:", X_spam_vectorized.shape if X_spam_vectorized is not None else "None")
+
+    return X_non_spam_vectorized.toarray(), X_spam_vectorized.toarray()
 

@@ -11,17 +11,17 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 
 
 # Load data from preprocess.py
-X = load_data()
+X_non_spam_vectorized, X_spam_vectorized = load_data()
 
 # Split the data into training and testing sets
-X_train, X_test = train_test_split(X, test_size=0.2, random_state=42)
+X_train_normal, X_val_normal = train_test_split(X_non_spam_vectorized, test_size=0.2, random_state=42, shuffle=True)
 
 # Convert NumPy arrays to PyTorch tensors
-X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
-X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
+X_train_tensor = torch.tensor(X_train_normal, dtype=torch.float32)
+X_test_tensor = torch.tensor(X_val_normal, dtype=torch.float32)
 
 # Model initialization
-input_dim = X_train.shape[1]  # This should match the size of your TF-IDF features
+input_dim = X_train_normal.shape[1]  # This should match the size of your TF-IDF features
 model = Autoencoder(input_dim)
 
 # Loss function and optimizer
