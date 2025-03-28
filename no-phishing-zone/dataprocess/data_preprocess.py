@@ -16,7 +16,6 @@ import torch.nn as nn
 def load_data():
     # Importing the dataset Ling-Spam dataset from kaggle
     df = pd.read_csv('dataprocess/dataset_messages.csv')
-    print('before dataprocessing:', df.shape)
 
     """Data cleaning and preprocessing"""
     # Converting the text in subject to lowercase
@@ -31,7 +30,6 @@ def load_data():
 
     # Removing undefined values
     df = df[df['subject'] != 'undefined']
-    print("after dataprocessing", df.shape)
 
     # Combining the subject and message columns
     df['sub_message'] = df['subject'] +  df['message']
@@ -109,14 +107,15 @@ def load_data():
     # Separating the dataset into non-spam and spam
     X_non_spam = df[df['label'] == 0]['clean_sub_message']
     X_spam = df[df['label'] == 1]['clean_sub_message']
+    
+    # Print amount of non-spam and spam messages
+    print(f"Number of non-spam messages: {len(X_non_spam)}")
+    print(f"Number of spam messages: {len(X_spam)}")
 
     # Text Vectorization
     vectorizer = TfidfVectorizer()
     X_non_spam_vectorized = vectorizer.fit_transform(X_non_spam)
     X_spam_vectorized = vectorizer.transform(X_spam)
-
-    print("Shape of dataset:", X_non_spam_vectorized.shape if X_non_spam_vectorized is not None else "None")
-    print("Shape of dataset:", X_spam_vectorized.shape if X_spam_vectorized is not None else "None")
 
     return X_non_spam_vectorized.toarray(), X_spam_vectorized.toarray()
 
