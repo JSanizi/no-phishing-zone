@@ -34,7 +34,7 @@ train_losses = []
 val_losses = []
 
 # Training Loop
-epochs = 10   
+epochs = 35  
 for epoch in range(epochs):
     model.train()
     
@@ -78,8 +78,8 @@ print("Model saved as 'autoencoder_model.pth'")
 plt.figure(figsize=(8, 5))
 plt.plot(range(epochs), val_losses, label='Validation Loss', color='red', linestyle='-')
 plt.plot(range(epochs), train_losses, label='Train Loss', color='blue', linestyle='--')
-plt.xlabel('Epochs')
-plt.ylabel('Loss')
+plt.ylabel('Epochs')
+plt.xlabel('Loss')
 plt.title(f'Training vs. Validation Loss' + "\n" + f"Test Loss: {test_loss.item():.4f}")
 plt.legend()
 # Save the loss plot in the folder 'Graphs'
