@@ -1,112 +1,172 @@
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import matplotlib.pyplot as plt
+import os
+import numpy as np
+import seaborn as sns
+import pandas as pd
 
 from autoencoder import Autoencoder
-from dataprocess.data_preprocess_ling import load_data
-from sklearn.model_selection import train_test_split
+from split_data import split_dataset
+from data_cleaning import clean_data
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics import classification_report
+from sklearn.metrics import confusion_matrix
+from torch.utils.data import DataLoader, TensorDataset
 
-# Load data from preprocess.py
-X_non_spam_vectorized, X_spam_vectorized, X_all_emails_vectorized = load_data()
 
-# Split the data into training and testing sets
-X_train, X_temp = train_test_split(X_non_spam_vectorized, test_size=0.2, random_state=42, shuffle=True)
-X_val, X_test = train_test_split(X_temp, test_size=0.5, random_state=42, shuffle=True)
+# Split dataset into train, validation, and test sets
+train_df, val_df, test_df = split_dataset('datasets/SpamAssasin.csv')
+
+# Clean the data
+train, train_labels = clean_data(train_df)
+val, val_labels = clean_data(val_df)
+test, test_labels = clean_data(test_df)
+
+
+# Vectorize the data using TF-IDF
+vectorizer = TfidfVectorizer()  # Adjust max_features as needed
+train_vectorized = vectorizer.fit_transform(train).toarray()
+val_vectorized = vectorizer.transform(val).toarray()
+test_vectorized = vectorizer.transform(test).toarray()
+
 
 # Convert the data arrays to PyTorch tensors
-X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
-X_val_tensor = torch.tensor(X_val, dtype=torch.float32)
-X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
+train_tensor = torch.tensor(train_vectorized, dtype=torch.float32)
+val_tensor = torch.tensor(val_vectorized, dtype=torch.float32)
+test_tensor = torch.tensor(test_vectorized, dtype=torch.float32)
+val_labels_tensor = torch.tensor(val_labels, dtype=torch.float32)
+test_labels_tensor = torch.tensor(test_labels, dtype=torch.float32)
+
+# Save the tensor for testing
+torch.save(train_tensor, 'train_tensor.pth')
+torch.save(val_tensor, 'val_tensor.pth')
+torch.save(test_tensor, 'test_tensor.pth')
+torch.save(val_labels_tensor, 'val_labels_tensor.pth')
+torch.save(test_labels_tensor, 'test_labels_tensor.pth')
 
 # Model initialization
-input_dim = X_train.shape[1]  # This should match the size of your TF-IDF features
-model = Autoencoder(input_dim)
+input_dim = train_vectorized.shape[1] # This should match the size of your TF-IDF features
 
-# Loss function and optimizer
-learning_rate = 0.001  # Learning rate can be adjusted
+
+# Hyperparameters
+learning_rate = 0.01  # Learning rate can be adjusted
+epochs = 10 # Number of epochs for training
+batch_size = 32  # Batch size for trainin
+encoding_dim = 8 # Dimension of the encoding layer
+weight_decay = 0.0001 # Weight decay for regularization
+
+# Model, Loss, Optimizer
+model = Autoencoder(input_dim, encoding_dim)  # Initialize the model
 criterion = nn.MSELoss() # Mean Squared Error Loss for reconstruction
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  # Adam optimizer with weight decay
+optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)  # Adam optimizer with weight decay
 
-# Track losses
-train_losses = []
-val_losses = []
-epochs = 30
+# Dataloader
+train_dataset = TensorDataset(train_tensor)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+val_dataset = TensorDataset(val_tensor, val_labels_tensor)  # Create a dataset with features and labels
+val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+test_dataset = TensorDataset(test_tensor, test_labels_tensor)  # Create a dataset with features and labels
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+# Lists to store losses for plotting
+train_loss_per_epoch = []
+val_loss_per_epoch = []
+test_loss_per_epoch = []
+true_labels = []  # To store true labels for evaluation
+test_losses = []  # To store test losses for evaluation
+
 
 # Training Loop
 for epoch in range(epochs):
-    model.train()
-    
-    # Forward pass
-    train_output = model(X_train_tensor)
-    train_loss = criterion(train_output, X_train_tensor)
-    
-    # Backpropagation and optimization
-    optimizer.zero_grad()
-    train_loss.backward()
-    optimizer.step()
+    # Initiate losses
+    train_losses = []  # To store the loss values for plotting
+    val_losses = [] # To store the loss values for plotting
+    all_losses = []  # To store the loss values for each batch
+    total_loss = 0  # Initialize total loss for the epoch
 
-    train_losses.append(train_loss.item())
+    model.train()  # Set the model to training mode
+    for batch in train_loader:
+        inputs = batch[0] # Get the batch data
 
-    # Validation loss
-    model.eval()
+        # Forward pass
+        outputs = model(inputs)
+        loss = criterion(outputs, inputs)  # Calculate the loss
+
+        # Backward pass and optimization
+        optimizer.zero_grad()  # Zero the gradients
+        loss.backward()  # Backpropagation
+        optimizer.step()  # Update the weights
+
+        total_loss += loss.item()  # Accumulate the loss
+
+    # Average loss
+    avg_loss = total_loss / len(train_loader)
+    train_loss_per_epoch.append(avg_loss)  # Store the average loss for plotting
+
+    model.eval()  # Set the model to evaluation mode
+
     with torch.no_grad():
-        val_output = model(X_val_tensor)
-        val_loss = criterion(val_output, X_val_tensor)
-        
-    #Store losses
-    val_losses.append(val_loss.item())
+        for inputs, labels in val_loader:
+            outputs = model(inputs)  # Forward pass
+            loss_per_sample = torch.mean((outputs - inputs) ** 2, dim=1)
+            # Only non-spam (label == 0)
+            val_losses.extend(loss_per_sample[labels == 0].cpu().numpy())
 
-    # Print loss every 1 epochs
-    if (epoch + 1) % 1 == 0:  # Print loss every 1 epochs
-        print(f'Epoch [{epoch+1}/{epochs}], Train Loss: {train_loss.item():.4f}, Val Loss: {val_loss.item():.4f}')
+    # Set threshold based on mean + 2*std of non-spam
+    threshold = 0.01
+    print(f"\n🔥 Detection threshold (based on non-spam): {threshold:.6f}")
 
-# Final Test Evaluation
-model.eval()
-with torch.no_grad():
-    test_output = model(X_test_tensor)
-    test_loss = criterion(test_output, X_test_tensor)
-    print(f'Test Loss: {test_loss.item():.4f}')
-    print(f'Validation Loss: {val_loss.item():.4f}')
-    print(f'Accuracy: {1 - val_loss.item():.4f}')
+    with torch.no_grad():
+        for inputs, labels in test_loader:
+            outputs = model(inputs)
+            loss_per_sample = torch.mean((outputs - inputs) ** 2, dim=1)
+            test_losses.extend(loss_per_sample.cpu().numpy()) # Store the test losses
+            true_labels.extend(labels.cpu().numpy()) # Store the true labels
 
-# Save the model
-torch.save(model, 'autoencoder_model.pth')
-print("Model saved as 'autoencoder_model.pth'")
-"""-----------------------------------------------------------------------------------------------"""
-# Visualizations
+    # Dynamically calculate the threshold based on validation losses
+    threshold = np.mean(val_losses) + 2 * np.std(val_losses)
+    print(f"\n🔥 Updated Detection Threshold: {threshold:.6f}")
 
-# 1️⃣ Plot Loss function 📉
-plt.figure(figsize=(12, 6))
-plt.plot(train_losses, label='Train Loss', color='blue')
-plt.plot(val_losses, label='Validation Loss', color='orange')
-plt.xlabel("Epochs")
-plt.ylabel("Loss")
-plt.title(f"Training and Validation Loss over Epochs" + "\n" + f"Final Test Loss: {test_loss.item():.4f}")
+# Predict based on threshold
+predicted_labels = [1 if loss > threshold else 0 for loss in test_losses]
+
+# Suppress warnings in classification report
+print("\n📊 Classification Report (Spam Detection using Autoencoder):")
+print(classification_report(true_labels, predicted_labels, target_names=["Non-Spam", "Spam"], zero_division=0))
+
+# Plot reconstruction loss distributions for Spam and Non-Spam
+non_spam_losses = [loss for loss, label in zip(test_losses, true_labels) if label == 0]
+spam_losses = [loss for loss, label in zip(test_losses, true_labels) if label == 1]
+
+plt.figure()
+plt.hist(non_spam_losses, bins=50, alpha=0.7, label='Non-Spam')
+plt.hist(spam_losses, bins=50, alpha=0.7, label='Spam')
+plt.axvline(threshold, color='r', linestyle='--', label='Threshold')
+plt.xlabel("Reconstruction Loss")
+plt.ylabel("Frequency")
+plt.title("Reconstruction Loss Distribution")
 plt.legend()
-
-# Save the loss plot in the folder 'Graphs'
-import os
-if not os.path.exists('Graphs'):
-    os.makedirs('Graphs')
-plt.savefig(f"Graphs/loss_curve_epoch_{epoch+1}_test.png")
-
-# If the file name exists, overwrite it
-# Check if the file exists and overwrite it
-if os.path.exists(f"Graphs/loss_curve_epoch_{epoch+1}_test.png"):
-    os.remove(f"Graphs/loss_curve_epoch_{epoch+1}_test.png") # Remove the old file if it exists
-plt.savefig(f"Graphs/loss_curve_epoch_{epoch+1}_test.png")   # Save the new file 
 plt.show()
 
-# 2️⃣ Plot learning rate over loss function 📈
-plt.figure(figsize=(12, 6))
-plt.plot(train_losses, [learning_rate] * len(train_losses), label='Train Loss', color='blue', marker='o')
-plt.xlabel("Learning Rate")
-plt.ylabel("Train Loss")
-plt.title(f"Learning Rate vs Train Loss" + "\n" + f"Final Test Loss: {test_loss.item():.4f}")
-plt.legend()
+# Calculate and print True Negative Rate (TNR) and False Positive Rate (FPR)
+cm = confusion_matrix(true_labels, predicted_labels)
+tn, fp, fn, tp = cm.ravel()
 
-# Check if the file exists and overwrite it
-if os.path.exists("Graphs/learning_rate.png"):
-    os.remove("Graphs/learning_rate.png") # Remove the old file if it exists
-plt.savefig("Graphs/learning_rate.png")   # Save the new file
+tnr = tn / (tn + fp)  # True Negative Rate
+fpr = fp / (tn + fp)  # False Positive Rate
+
+print(f"True Negative Rate (TNR): {tnr:.4f}")
+print(f"False Positive Rate (FPR): {fpr:.4f}")
+
+# Save confusion matrix plot
+plt.figure(figsize=(5, 5))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Purples', xticklabels=['Non-Spam', 'Spam'], yticklabels=['Non-Spam', 'Spam'])
+plt.xlabel('Predicted')
+plt.ylabel('True')
+plt.title('Confusion Matrix')
+plt.savefig(f"Graphs/confusion_matrix_epoch_{epoch+1}.png")
 plt.show()

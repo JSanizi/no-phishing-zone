@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class Autoencoder(nn.Module):
-    def __init__(self, input_dim):
+    def __init__(self, input_dim, encoding_dim):
         super(Autoencoder, self).__init__()
         
         # Encoder
@@ -11,12 +11,12 @@ class Autoencoder(nn.Module):
             nn.ReLU(),
             nn.Linear(128, 64),
             nn.ReLU(),
-            nn.Linear(64, 32),  # Latent space representation
+            nn.Linear(64, encoding_dim),  # Latent space representation
         )
         
         # Decoder
         self.decoder = nn.Sequential(
-            nn.Linear(32, 64),
+            nn.Linear(encoding_dim, 64),
             nn.ReLU(),
             nn.Linear(64, 128),
             nn.ReLU(),
@@ -25,7 +25,7 @@ class Autoencoder(nn.Module):
         )
     
     def forward(self, x):
-        x = self.encoder(x)
-        x = self.decoder(x)
+        encoded = self.encoder(x)
+        decoded = self.decoder(encoded)
 
-        return x
+        return decoded
