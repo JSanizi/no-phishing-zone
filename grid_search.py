@@ -93,68 +93,26 @@ def grid_search(train_tensor, val_tensor, val_labels_tensor, input_dim, param_gr
     print("\nBest Parameters:")
     print(best_params)
     print(f"Best Validation Loss: {best_val_loss:.4f}")
-    return best_params
 
-# Save the classification report to a text file
-true_labels = np.array([])  # Replace with actual true labels
-predicted_labels = np.array([])  # Replace with actual predicted labels
+    # Generate predictions using the best parameters
+    best_model = Autoencoder(input_dim, best_params['encoding_dim'])
+    best_model.eval()
 
-with open("classification_report.txt", "w") as f:
-    report = classification_report(true_labels, predicted_labels, target_names=["Non-Spam", "Spam"])
-    f.write("📊 Classification Report (Spam Detection using Autoencoder):\n")
-    f.write(report)
-print("Classification report saved to 'classification_report.txt'")
+    true_labels = []
+    predicted_labels = []
 
-# Save the confusion matrix to a CSV file
-cm = confusion_matrix(true_labels, predicted_labels)  # Ensure true_labels and predicted_labels are defined
-cm_df = pd.DataFrame(cm, index=['Non-Spam', 'Spam'], columns=['Non-Spam', 'Spam'])
-cm_df.to_csv("confusion_matrix.csv")
-print("Confusion matrix saved to 'confusion_matrix.csv'")
+    val_loader = DataLoader(TensorDataset(val_tensor, val_labels_tensor), batch_size=best_params['batch_size'], shuffle=False)
+    threshold = 0.5  # Replace with actual threshold
 
-# Save the best hyperparameters to a text file
-best_epoch = 1  # Replace with actual best epoch
-train_loss_per_epoch = []  # Replace with actual training loss per epoch
-val_loss_per_epoch = []  # Replace with actual validation loss per epoch
-test_loss_per_epoch = []  # Replace with actual test loss per epoch
-threshold = 0.5  # Replace with actual threshold
-encoding_dim = 16  # Replace with actual best encoding dimension
-learning_rate = 0.001  # Replace with actual best learning rate
-batch_size = 32  # Replace with actual best batch size
-weight_decay = 1e-5  # Replace with actual best weight decay
+    with torch.no_grad():
+        for inputs, labels in val_loader:  # Use validation or test loader
+            outputs = best_model(inputs)
+            loss_per_sample = torch.mean((outputs - inputs) ** 2, dim=1)
+            predictions = (loss_per_sample > threshold).int()  # 1 for Spam, 0 for Non-Spam
+            true_labels.extend(labels.cpu().numpy())
+            predicted_labels.extend(predictions.cpu().numpy())
 
-with open("best_hyperparameters.txt", "w") as f:
-    f.write("Best Hyperparameters:\n")
-    f.write(f"Encoding Dimension: {encoding_dim}\n")
-    f.write(f"Learning Rate: {learning_rate}\n")
-    f.write(f"Batch Size: {batch_size}\n")
-    f.write(f"Weight Decay: {weight_decay}\n")
-print("Best hyperparameters saved to 'best_hyperparameters.txt'")
-
-# Save results to a JSON file
-results_json = {
-    "Best Epoch": best_epoch,
-    "Best Test Loss": test_loss_per_epoch[best_epoch - 1] if test_loss_per_epoch else None,
-    "Threshold": threshold,
-    "Train Loss Per Epoch": train_loss_per_epoch,
-    "Validation Loss Per Epoch": val_loss_per_epoch,
-    "Test Loss Per Epoch": test_loss_per_epoch
-}
-
-with open("results.json", "w") as f:
-    json.dump(results_json, f, indent=4)
-print("Results saved to 'results.json'")
-
-# Save the results as a CSV file
-epochs = len(train_loss_per_epoch)  # Ensure epochs is defined
-results = {
-    'Epoch': np.arange(1, epochs + 1),
-    'Train Loss': train_loss_per_epoch,
-    'Validation Loss': val_loss_per_epoch,
-    'Test Loss': test_loss_per_epoch
-}
-results_df = pd.DataFrame(results)
-results_df.to_csv('results.csv', index=False)
-print("Results saved to 'results.csv'")
+    return best_params, true_labels, predicted_labels
 
 # Example usage
 if __name__ == "__main__":
@@ -165,5 +123,63 @@ if __name__ == "__main__":
     input_dim = train_tensor.shape[1]
     
     # Perform grid search
-    best_params = grid_search(train_tensor, val_tensor, val_labels_tensor, input_dim, param_grid)
+    best_params, true_labels, predicted_labels = grid_search(train_tensor, val_tensor, val_labels_tensor, input_dim, param_grid)
+
+    with open("classification_report.txt", "w") as f:
+        report = classification_report(true_labels, predicted_labels, target_names=["Non-Spam", "Spam"])
+        f.write("📊 Classification Report (Spam Detection using Autoencoder):\n")
+        f.write(report)
+    print("Classification report saved to 'classification_report.txt'")
+
+    # Save the confusion matrix to a CSV file
+    cm = confusion_matrix(true_labels, predicted_labels)
+    cm_df = pd.DataFrame(cm, index=['Non-Spam', 'Spam'], columns=['Non-Spam', 'Spam'])
+    cm_df.to_csv("confusion_matrix.csv")
+    print("Confusion matrix saved to 'confusion_matrix.csv'")
+
+    # Save the best hyperparameters to a text file
+    best_epoch = 1  # Replace with actual best epoch
+    train_loss_per_epoch = []  # Replace with actual training loss per epoch
+    val_loss_per_epoch = []  # Replace with actual validation loss per epoch
+    test_loss_per_epoch = []  # Replace with actual test loss per epoch
+    threshold = 0.5  # Replace with actual threshold
+    encoding_dim = 16  # Replace with actual best encoding dimension
+    learning_rate = 0.001  # Replace with actual best learning rate
+    batch_size = 32  # Replace with actual best batch size
+    weight_decay = 1e-5  # Replace with actual best weight decay
+
+    with open("best_hyperparameters.txt", "w") as f:
+        f.write("Best Hyperparameters:\n")
+        f.write(f"Encoding Dimension: {encoding_dim}\n")
+        f.write(f"Learning Rate: {learning_rate}\n")
+        f.write(f"Batch Size: {batch_size}\n")
+        f.write(f"Weight Decay: {weight_decay}\n")
+    print("Best hyperparameters saved to 'best_hyperparameters.txt'")
+
+    # Save results to a JSON file
+    results_json = {
+        "Best Epoch": best_epoch,
+        "Best Test Loss": test_loss_per_epoch[best_epoch - 1] if test_loss_per_epoch else None,
+        "Threshold": threshold,
+        "Train Loss Per Epoch": train_loss_per_epoch,
+        "Validation Loss Per Epoch": val_loss_per_epoch,
+        "Test Loss Per Epoch": test_loss_per_epoch
+    }
+
+    with open("results.json", "w") as f:
+        json.dump(results_json, f, indent=4)
+    print("Results saved to 'results.json'")
+
+    # Save the results as a CSV file
+    epochs = len(train_loss_per_epoch)  # Ensure epochs is defined
+    results = {
+        'Epoch': np.arange(1, epochs + 1),
+        'Train Loss': train_loss_per_epoch,
+        'Validation Loss': val_loss_per_epoch,
+        'Test Loss': test_loss_per_epoch
+    }
+    results_df = pd.DataFrame(results)
+    results_df.to_csv('results.csv', index=False)
+    print("Results saved to 'results.csv'")
+
 
