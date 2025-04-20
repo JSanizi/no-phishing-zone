@@ -38,7 +38,7 @@ def split_dataset(dataset_path):
     print(f"Validation set: {len(val_df)} ({val_df['label'].value_counts().to_dict()})")
     print(f"Test set: {len(test_df)} ({test_df['label'].value_counts().to_dict()})")
 
-    return train_df, val_df, test_df
+    return train_df, val_df, test_df, spam_emails_df
 
 
 

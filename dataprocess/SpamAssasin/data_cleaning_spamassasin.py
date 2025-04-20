@@ -91,9 +91,9 @@ def load_data():
     test_df['sub_body'] = test_df['sub_body'].str.lower()
 
     #REPLACING NEXT LINES BY 'WHITE SPACE'
-    train_df['sub_body'] = train_df['sub_body'].str.replace(r'\n'," ") 
+    train_df['sub_body'] = train_df['sub_body'].str.replace(r'\n',"  ") 
     val_df['sub_body'] = val_df['sub_body'].str.replace(r'\n'," ")
-    test_df['sub_body'] = test_df['sub_body'].str.replace(r'\n'," ")
+    test_df['sub_body'] = test_df['sub_body'].str.replace(r'\n',"  ")
 
     # REPLACING EMAIL IDs BY 'MAILID'
     train_df['sub_body'] = train_df['sub_body'].str.replace(r'^.+@[^\.].*\.[a-z]{2,}$',' MailID ')
