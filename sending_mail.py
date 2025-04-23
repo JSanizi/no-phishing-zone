@@ -26,7 +26,7 @@ dataset = dataset.dropna(subset=['subject', 'body'])
 dataset = dataset.sample(frac=1).reset_index(drop=True)
 
 # ✨ Limit to amount of emails max per run
-MAX_EMAILS = 20
+MAX_EMAILS = 8
 emails_sent = 0
 email_number = 1
 spam_count = 0
@@ -77,3 +77,26 @@ for index, row in dataset.iterrows():
         spam_count += 1
     else:
         non_spam_count += 1
+
+# Return what spam and non-spam emails were sent in a array
+def get_sent_emails_list():
+    # Get the sent email list and their labels and save them in a csv file
+    sent_email_df = pd.DataFrame({
+        'email_number': range(1, emails_sent + 1),
+        'true_label': dataset['label'][:emails_sent],
+    })
+ 
+    sent_email_df['true_label'] = sent_email_df['true_label'].apply(lambda x: 'Spam' if x == 1 else 'Non-Spam')
+    sent_email_df['true_label'] = sent_email_df['true_label'][::-1]
+
+    if os.path.exists('true_sent_emails.csv'):
+        os.remove('true_sent_emails.csv')
+    sent_email_df.to_csv('true_sent_emails.csv', index=False)
+
+    true_sent_email_list = pd.read_csv('true_sent_emails.csv')
+
+    print(f"The list of true sent emails labels: {sent_email_df.head()}")
+    
+    return true_sent_email_list
+
+get_sent_emails_list()

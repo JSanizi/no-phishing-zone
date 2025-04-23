@@ -79,7 +79,7 @@ def preprocess_email(email_text):
     email_text = " ".join([word for word in email_text.split() if word not in stop_words])
 
     # Text Vectorization
-    vectorizer = pickle.load(open('tfidf_vectorizer.pkl', 'rb'))
+    vectorizer = pickle.load(open('models/vectorizer.pkl', 'rb'))
     email_text_vectorized = vectorizer.transform([email_text])
 
     return email_text_vectorized.toarray()

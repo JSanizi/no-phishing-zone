@@ -22,7 +22,6 @@ def clean_data(df):
     else:
         df['sub_body'] = df
 
-
     # Removing the missing values
     df.dropna(inplace=True)
 
@@ -92,7 +91,7 @@ def clean_data(df):
     df['clean_sub_body'] = df['sub_body'].apply(lambda x: ' '.join([word for word in x.split() if word not in (stop_words)]))  
 
     # Get the labels from columns
-    df_labels = get_labels(df)    
+    df_labels = get_labels(df)
     
     # Remove features that are not useful
     # if the dataset has the columns 'date', 'label', 'sender', 'receiver', remove them

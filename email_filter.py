@@ -1,9 +1,13 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import pandas as pd
+import os
+
 from preprocess_mails import preprocess_email
 from connect_to_email import get_unread_emails
 from autoencoder import Autoencoder
+
 
 # Fetch the unread emails
 email_texts = get_unread_emails()
@@ -30,12 +34,13 @@ email_text_tensor = torch.tensor(preprocessed_emails, dtype=torch.float32)
 
 # Define input dimension based on the vectorized email text
 input_dim = email_text_tensor.shape[1]  # This should match the size of your TF-IDF features
+encoding_dim = 8  # Size of the latent space representation
 
 # Re-initialize the Autoencoder with the correct input dimension
-autoencoder = Autoencoder(input_dim)
+autoencoder = Autoencoder(input_dim, encoding_dim)
 
 # Load the trained model
-autoencoder = torch.load("autoencoder_model.pth", weights_only=False)
+autoencoder = torch.load("models/autoencoder_model.pth", weights_only=False)
 
 # Set the model to evaluation mode
 autoencoder.eval()
@@ -44,7 +49,8 @@ autoencoder.eval()
 def spam_detection_one_by_one(emails):
     spam_count = 0
     non_spam_count = 0
-    threshold = 0.048
+    predicted_label = []
+    threshold = 0.0012
 
     for i, email in enumerate(emails):
         email = email.unsqueeze(0)  # Add batch dimension
@@ -60,13 +66,49 @@ def spam_detection_one_by_one(emails):
         if reconstruction_error > threshold:
             print("⚠️ This email is likely SPAM.")
             spam_count += 1
+            predicted_label.append('Spam')
         else:
             print("✅ This email is likely NOT spam.")
             non_spam_count += 1
+            predicted_label.append('Non-Spam')
+
+    # Initialize the DataFrame to store predicted labels with two columns: email_number and label
+    pred_email_df = pd.DataFrame({
+        'email_number': range(1, len(email_texts) + 1),
+        'label': predicted_label,
+    })
+
+    # Save the predicted labels to a CSV file
+    if os.path.exists('predicted_sent_emails.csv'):
+        os.remove('predicted_sent_emails.csv')
+    pred_email_df.to_csv('predicted_sent_emails.csv', index=False)
+
 
     print(f"\n📊 Summary:")
     print(f"🚨 Spam emails: {spam_count}")
     print(f"✅ Non-spam emails: {non_spam_count}")
 
+
+# Calculating the accuracy of the model
+def calculate_accuracy():
+    y_true_df = pd.read_csv('true_sent_emails.csv')
+    y_pred_df = pd.read_csv('predicted_sent_emails.csv')
+
+    y_true = y_true_df['true_label'].values
+    y_pred = y_pred_df['label'].values
+
+    print(f"\n📊 True labels: {y_true}")
+    print(f"📊 Predicted labels: {y_pred}")
+
+    accuracy = np.mean(y_true == y_pred) * 100
+    print(f"\n📈 Accuracy: {accuracy:.2f}%")
+
+    print(f"📊 True Positives: {np.sum((y_true == 'Spam') & (y_pred == 'Spam'))}")
+    print(f"📊 True Negatives: {np.sum((y_true == 'Non-Spam') & (y_pred == 'Non-Spam'))}")
+    print(f"📊 False Positives: {np.sum((y_true == 'Non-Spam') & (y_pred == 'Spam'))}")
+    print(f"📊 False Negatives: {np.sum((y_true == 'Spam') & (y_pred == 'Non-Spam'))}")
+    
+
 # Run the spam detection
 spam_detection_one_by_one(email_text_tensor)
+calculate_accuracy()

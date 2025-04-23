@@ -5,55 +5,65 @@ import matplotlib.pyplot as plt
 import os
 import numpy as np
 import seaborn as sns
-import pandas as pd
+import pickle
 
 from autoencoder import Autoencoder
 from split_data import split_dataset
-from data_cleaning import clean_data
+from data_cleaning import clean_data, get_labels
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix
 from sklearn import metrics
-from torch.utils.data import DataLoader, TensorDataset
+from sklearn.metrics import accuracy_score, precision_score, recall_score
 
 
 # Split dataset into train, validation, and test sets
-train_df, val_df, test_df, spam_emails_df = split_dataset('datasets/SpamAssasin.csv')
+# train_df, val_df, test_df, spam_emails_df = split_dataset('datasets/SpamAssasin.csv')
+train_df, val_df, test_df, spam_emails_df = split_dataset('datasets/CEAS_08.csv')
 
 # Clean the data
 train, train_labels = clean_data(train_df)
-val, val_labels = clean_data(val_df)
 test, test_labels = clean_data(test_df)
 
 # Split train data into train and validation sets
-x_non_spam_train_data, x_non_spam_test_data = train_test_split(train, test_size=0.25, random_state=42)
+x_non_spam_train_data, x_non_spam_val_data = train_test_split(train, test_size=0.25, random_state=42)
 
 # Convert the data to TF-IDF features
-vectorizer = TfidfVectorizer(max_features=1000)
+vectorizer = TfidfVectorizer(max_features=5000)
 x_non_spam_train_data = vectorizer.fit_transform(x_non_spam_train_data).toarray()
-x_non_spam_test_data = vectorizer.transform(x_non_spam_test_data).toarray()
+x_non_spam_test_data = vectorizer.transform(x_non_spam_val_data).toarray()
+
+# Convert the spam emails to TF-IDF features for evaluation
 train = vectorizer.transform(train).toarray()
 spam_emails_df = vectorizer.transform(spam_emails_df).toarray()
 
+# Convert validation test and test data to TF-IDF features
+test_data = vectorizer.transform(test).toarray()
+
 # Convert to PyTorch tensors
 x_non_spam_train_tensor = torch.tensor(x_non_spam_train_data, dtype=torch.float32)
-x_non_spam_test_tensor = torch.tensor(x_non_spam_test_data, dtype=torch.float32)
+x_non_spam_val_tensor = torch.tensor(x_non_spam_test_data, dtype=torch.float32)
 x_only_non_spam_data_tensor = torch.tensor(train, dtype=torch.float32)
 x_only_spam_data_tensor = torch.tensor(spam_emails_df, dtype=torch.float32)
+x_test_data_tensor = torch.tensor(test_data, dtype=torch.float32)
 
 # Parameter setup
-num_epochs = 40
+num_epochs = 40  
 learning_rate = 0.001
-encoding_dim = 32  # Size of the latent space representation
-batch_size = 8
-weight_decay = 1e-5
+encoding_dim = 8 # Size of the latent space representation
+batch_size = 32
+weight_decay = 0
 
 # Autoencoder setup 
 input_dim = x_non_spam_train_tensor.shape[1]
 model = Autoencoder(input_dim, encoding_dim)
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+
+# Intialize losses
+train_losses = []
+val_losses = []
 
 model.train()
 # Training the autoencoder
@@ -68,58 +78,169 @@ for epoch in range(num_epochs):
     # Update the weights
     optimizer.step()
 
-    # Print loss every 100 epochs
+    # Accumulate the loss
+    train_loss = loss.mean().item()
+    train_losses.append(train_loss)
+
+    # Evaluation with validation dataset
+    with torch.no_grad():
+        reconstrutions = model(x_non_spam_val_tensor)
+        errors = torch.mean((reconstrutions - x_non_spam_val_tensor) ** 2, dim=1)
+
+        val_loss = errors.mean().item()
+        val_losses.append(val_loss)
+
+    # Print loss every 1 epochs
     if (epoch + 1) % 1 == 0:
-        print(f'Epoch [{epoch + 1}/{num_epochs}], Loss: {loss.item():.4f}')
+        print(f'Epoch [{epoch + 1}/{num_epochs}], Loss: {loss.item():.4f}, Validation Loss: {val_loss:.4f}')
 
-# Evaluation with only non-spam dataset.
+# Evaluate the model on the test set
 model.eval()
+test_losses = 0
 with torch.no_grad():
-    pred_test = model(x_non_spam_test_tensor).numpy()
-    score1 = np.sqrt(metrics.mean_squared_error(pred_test, x_non_spam_test_data))
+        output = model(x_test_data_tensor)
+        loss = criterion(output, x_test_data_tensor)
+        test_losses += loss.mean().item()
 
-    pred_good = model(x_only_non_spam_data_tensor).numpy()
-    score2 = np.sqrt(metrics.mean_squared_error(pred_good, x_only_non_spam_data_tensor))
+avg_test_loss = test_losses / len(x_test_data_tensor)
+print("Test Loss:", avg_test_loss)
 
-    pred_bad = model(x_only_spam_data_tensor).numpy()
-    score3 = np.sqrt(metrics.mean_squared_error(pred_bad, x_only_spam_data_tensor))
+# Plotting classification report and confusion matrix
+# Calculate reconstruction errors
+with torch.no_grad():
+    val_reconstructions = model(x_non_spam_val_tensor)
+    val_reconstruction_errors = torch.mean((val_reconstructions - x_non_spam_val_tensor) ** 2, dim=1).numpy()
 
-print(f"Insample with non spam emails (RMSE): {score1}")
-print(f"Out of Sample non spam emails (RMSE): {score2}")
-print(f"Spam email Score (RMSE): {score3}")
+# Set a threshold for anomaly detection
+threshold = np.percentile(val_reconstruction_errors, 95)  # Example: 95th percentile
+# threshold = 0.0013
+print(f"Threshold for anomaly detection: {threshold:.4f}")
+
+# Calculate reconstruction errors for test data
+with torch.no_grad():
+    test_reconstructions = model(x_test_data_tensor)
+    test_reconstruction_errors = torch.mean((test_reconstructions - x_test_data_tensor) ** 2, dim=1).numpy()
+
+# Classify test emails as spam or non-spam
+y_pred = (test_reconstruction_errors > threshold).astype(int)  # 1 for spam, 0 for non-spam
+
+with torch.no_grad():
+    pred_non_spam_val= model(x_non_spam_val_tensor).numpy()
+    non_spam_val_rsm = np.sqrt(metrics.mean_squared_error(pred_non_spam_val, x_non_spam_val_tensor))
+
+    pred_non_spam = model(x_only_non_spam_data_tensor).numpy()
+    non_spam_rsm = np.sqrt(metrics.mean_squared_error(pred_non_spam, x_only_non_spam_data_tensor))
+
+    pred_spam = model(x_only_spam_data_tensor).numpy()
+    spam_rmse = np.sqrt(metrics.mean_squared_error(pred_spam, x_only_spam_data_tensor))
+
+print(f"Insample with non spam emails (RMSE): {non_spam_val_rsm}")
+print(f"Out of Sample non spam emails (RMSE): {non_spam_rsm}")
+print(f"Spam email Score (RMSE): {spam_rmse}")
+
+# Save the model
+if not os.path.exists('models'):
+    os.makedirs('models')
+if os.path.exists('models/autoencoder_model.pth'):
+    os.remove('models/autoencoder_model.pth')
+torch.save(model, 'models/autoencoder_model.pth')
+
+# Save the vectorizer
+if not os.path.exists('models'):
+    os.makedirs('models')
+if os.path.exists('models/vectorizer.pkl'):
+    os.remove('models/vectorizer.pkl')
+
+with open('models/vectorizer.pkl', 'wb') as f:
+    pickle.dump(vectorizer, f)
 
 
-# Plotting the results using classification report and confusion matrix
-def plot_classification_report(y_true, y_pred, title='Classification Report'):
-    report = classification_report(y_true, y_pred, output_dict=True)
-    df_report = pd.DataFrame(report).transpose()
-    
-    plt.figure(figsize=(10, 6))
-    sns.heatmap(df_report.iloc[:-1, :].T, annot=True, fmt='.2f', cmap='Blues')
-    plt.title(title)
-    plt.show()
+
+# Classification report and confusion matrix
+print(confusion_matrix(y_pred, test_labels))
+print("Accuracy : ", accuracy_score(y_pred, test_labels))
+print("Precision : ", precision_score(y_pred ,test_labels, average = 'weighted'))
+print("Recall : ", recall_score(y_pred, test_labels, average = 'weighted'))
+
+# Plotting the training and validation losses
+plt.figure(figsize=(10, 5))
+plt.plot(train_losses, label='Training Loss')
+plt.plot(val_losses,  label='Validation Loss')
+plt.title('Training vs Validation Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.legend()
+plt.grid(True)
+if not os.path.exists('graphs'):
+    os.makedirs('graphs')
+if  os.path.exists('graphs/training_validation_loss.png'):
+    os.remove('graphs/training_validation_loss.png')
+plt.savefig('graphs/training_validation_loss.png')
+plt.show()
+
+# Plotting the reconstruction errors and threshold with validation data
+plt.figure(figsize=(10, 6))
+plt.hist(val_reconstruction_errors, bins=50, color='lavender', edgecolor='black')
+plt.axvline(x=threshold, color='red', linestyle='--', linewidth=2, label='Anomaly Threshold')
+plt.axvspan(threshold, max(val_reconstruction_errors), color='red', alpha=0.3)
+plt.title('Distribution of Reconstruction Errors with validation data' + '\n' + f'Threshold: {threshold:.4f}')
+plt.xlabel('Reconstruction Error')
+plt.ylabel('Number of Samples')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+if os.path.exists('graphs/reconstruction_errors_validation.png'):
+    os.remove('graphs/reconstruction_errors_validation.png')
+plt.savefig('graphs/reconstruction_errors_validation.png')
+plt.show()
+
+# Plotting the reconstruction errors and threshold with test data
+plt.figure(figsize=(10, 6))
+plt.hist(test_reconstruction_errors, bins=50, color='lavender', edgecolor='black')
+plt.axvline(x=threshold, color='red', linestyle='--', linewidth=2, label='Anomaly Threshold')
+plt.axvspan(threshold, max(test_reconstruction_errors), color='red', alpha=0.3)
+plt.title('Distribution of Reconstruction Error with test data' + '\n' + f'Threshold: {threshold:.4f}')
+plt.xlabel('Reconstruction Error')
+plt.ylabel('Number of Samples')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+if os.path.exists('graphs/reconstruction_errors_test.png'):
+    os.remove('graphs/reconstruction_errors_test.png')
+plt.savefig('graphs/reconstruction_errors_test.png')
+plt.show()
+
+# Confusion matrix
+cm = confusion_matrix(test_labels, y_pred)
+TN, FP, FN, TP = cm.ravel()  # Extract values from the confusion matrix
+plt.figure(figsize=(10, 5))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Non-Spam', 'Spam'], yticklabels=['Non-Spam', 'Spam'])
+plt.title('Confusion Matrix')
+plt.xlabel('Predicted')
+plt.ylabel('True')
+if os.path.exists('graphs/confusion_matrix.png'):
+    os.remove('graphs/confusion_matrix.png')
+plt.savefig('graphs/confusion_matrix.png')
+plt.show() 
+
+# Reconstruction error distribution for spam and non-spam emails
+plt.figure(figsize=(10, 6))
+plt.hist(test_reconstruction_errors[test_labels == 0], bins=50, color='blue', alpha=0.5, label='Non-Spam')
+plt.hist(test_reconstruction_errors[test_labels == 1], bins=50, color='red', alpha=0.5, label='Spam')
+plt.axvline(x=threshold, color='red', linestyle='--', linewidth=2, label='Anomaly Threshold')
+plt.axvspan(threshold, max(test_reconstruction_errors), color='red', alpha=0.3)
+plt.title('Reconstruction Error Distribution for Spam and Non-Spam Emails' + '\n' + f'Threshold: {threshold:.4f}')
+plt.xlabel('Reconstruction Error')
+plt.ylabel('Number of Samples')
+plt.legend()
+plt.grid()
+plt.tight_layout()
+if os.path.exists('graphs/reconstruction_error_distribution.png'):
+    os.remove('graphs/reconstruction_error_distribution.png')   
+plt.savefig('graphs/reconstruction_error_distribution.png')
+plt.show()
+
+# Classification report
+print(classification_report(test_labels, y_pred, target_names=['Non-Spam', 'Spam'])) 
 
 
-def plot_confusion_matrix(y_true, y_pred, title='Confusion Matrix'):
-    cm = confusion_matrix(y_true, y_pred)
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-    plt.title(title)
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    plt.show()
-
-
-def plot_roc_curve(y_true, y_scores, title='ROC Curve'):
-    fpr, tpr, _ = metrics.roc_curve(y_true, y_scores)
-    roc_auc = metrics.auc(fpr, tpr)
-
-    plt.figure(figsize=(8, 6))
-    plt.plot(fpr, tpr, label=f'ROC curve (area = {roc_auc:.2f})')
-    plt.plot([0, 1], [0, 1], 'k--')
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title(title)
-    plt.legend(loc='lower right')
-    plt.show()
