@@ -1,9 +1,9 @@
 email_number,true_label
 1,Spam
 2,Spam
-3,Spam
+3,Non-Spam
 4,Spam
 5,Non-Spam
-6,Spam
+6,Non-Spam
 7,Non-Spam
 8,Spam

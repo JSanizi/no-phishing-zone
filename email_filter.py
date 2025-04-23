@@ -7,6 +7,7 @@ import os
 from preprocess_mails import preprocess_email
 from connect_to_email import get_unread_emails
 from autoencoder import Autoencoder
+from sending_mail import send_email
 
 
 # Fetch the unread emails
@@ -49,7 +50,7 @@ autoencoder.eval()
 def spam_detection_one_by_one(emails):
     spam_count = 0
     non_spam_count = 0
-    predicted_label = []
+    predicted_label = [] 
     threshold = 0.0012
 
     for i, email in enumerate(emails):
@@ -75,13 +76,13 @@ def spam_detection_one_by_one(emails):
     # Initialize the DataFrame to store predicted labels with two columns: email_number and label
     pred_email_df = pd.DataFrame({
         'email_number': range(1, len(email_texts) + 1),
-        'label': predicted_label,
+        'label': predicted_label ,
     })
 
     # Save the predicted labels to a CSV file
-    if os.path.exists('predicted_sent_emails.csv'):
-        os.remove('predicted_sent_emails.csv')
-    pred_email_df.to_csv('predicted_sent_emails.csv', index=False)
+    if os.path.exists('email_labels/predicted_sent_emails.csv'):
+        os.remove('email_labels/predicted_sent_emails.csv')
+    pred_email_df.to_csv('email_labels/predicted_sent_emails.csv', index=False)
 
 
     print(f"\n📊 Summary:")
@@ -91,8 +92,8 @@ def spam_detection_one_by_one(emails):
 
 # Calculating the accuracy of the model
 def calculate_accuracy():
-    y_true_df = pd.read_csv('true_sent_emails.csv')
-    y_pred_df = pd.read_csv('predicted_sent_emails.csv')
+    y_true_df = pd.read_csv('email_labels/true_sent_emails.csv')
+    y_pred_df = pd.read_csv('email_labels/predicted_sent_emails.csv')
 
     y_true = y_true_df['true_label'].values
     y_pred = y_pred_df['label'].values
@@ -107,7 +108,7 @@ def calculate_accuracy():
     print(f"📊 True Negatives: {np.sum((y_true == 'Non-Spam') & (y_pred == 'Non-Spam'))}")
     print(f"📊 False Positives: {np.sum((y_true == 'Non-Spam') & (y_pred == 'Spam'))}")
     print(f"📊 False Negatives: {np.sum((y_true == 'Spam') & (y_pred == 'Non-Spam'))}")
-    
+
 
 # Run the spam detection
 spam_detection_one_by_one(email_text_tensor)
