@@ -7,3 +7,4 @@ graphs/*
 models/*
 tables/*
 email_labels/*
+credential.env
