@@ -3,7 +3,7 @@ datasets/*.csv
 *.pth
 *.pt
 *.pkl
-email_labels/*
 graphs/*
 models/*
 tables/*
+email_labels/*
