@@ -6,4 +6,4 @@ datasets/*.csv
 graphs/*
 models/*
 tables/*
-email_labels
+email_labels/*
