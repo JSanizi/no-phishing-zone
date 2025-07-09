@@ -94,22 +94,23 @@ def printing_confusion_matrix():
         cm = confusion_matrix(true_labels, predicted_labels)
         plt.figure(figsize=(8, 6))
         sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Non-Spam', 'Spam'], yticklabels=['Non-Spam', 'Spam'])
-        plt.title(f'Confusion Matrix for {model_name}')
+        plt.title(f'Confusion Matrix for {model_name} with {len(true_labels)} emails\n')
         plt.xlabel('Predicted')
         plt.ylabel('True')
 
-        if os.path.exists(f'graphs/confusion/{model_name}_confusion_matrix.png'):
-            os.remove(f'graphs/confusion/{model_name}_confusion_matrix.png')
-        plt.savefig(f'graphs/confusion/{model_name}_confusion_matrix.png')
+        if os.path.exists(f'graphs/confusion/{len(true_labels)}_emails/{model_name}_confusion_matrix.png'):
+            os.remove(f'graphs/confusion/{len(true_labels)}_emails/{model_name}_confusion_matrix.png')
+        plt.savefig(f'graphs/confusion/{len(true_labels)}_emails/{model_name}_confusion_matrix.png')
         plt.close()
         print(f"📸 Confusion matrix saved as {model_name}_confusion_matrix.png")
     
         # Save the classification report as a text file
-        if os.path.exists(f'graphs/classification_reports/{model_name}_classification_report.txt'):
-            os.remove(f'graphs/classification_reports/{model_name}_classification_report.txt')
+        if os.path.exists(f'graphs/classification_reports/{len(true_labels)}_emails/{model_name}_classification_report.txt'):
+            os.remove(f'graphs/classification_reports/{len(true_labels)}_emails/{model_name}_classification_report.txt')
 
         report = classification_report(true_labels, predicted_labels, target_names=['Non-Spam', 'Spam'], zero_division=0)
-        with open(f'graphs/classification_reports/{model_name}_classification_report.txt', 'w') as f:
+        with open(f'graphs/classification_reports/{len(true_labels)}_emails/{model_name}_classification_report.txt', 'w') as f:
+            f.write(f'Amount of emails: {len(true_labels)}\n')
             f.write(report)
         print(f"📄 Classification report saved as {model_name}_classification_report.txt")
 
@@ -128,3 +129,6 @@ def main():
         print("📬 Emails processed successfully.")
     else:
         print("📭 No email to process.")
+
+if __name__ == "__main__":
+    main()

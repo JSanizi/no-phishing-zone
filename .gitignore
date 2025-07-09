@@ -8,3 +8,5 @@ models/*
 tables/*
 email_labels/*
 credential.env
+test_phishing_zone.py
+out/*

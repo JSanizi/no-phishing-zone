@@ -67,11 +67,6 @@ def ac_parameter_tuning():
         for encoding_dim in param_grid["encoding_dim"]:
             for num_epochs in param_grid["num_epochs"]:
                 for opt_name in param_grid["optimizer"]:
-                    current_combination += 1
-                    remaining_combinations = total_combinations - current_combination
-
-                    print(f"Testing Parameters: learning_rate={lr}, encoding_dim={encoding_dim}, num_epochs={num_epochs}, optimizer={opt_name}")
-                    print(f"Remaining Combinations: {remaining_combinations} \n")
 
                     input_dim = x_non_spam_train_tensor.shape[1]
                     model = Autoencoder(input_dim, encoding_dim)
@@ -157,24 +152,6 @@ def ac_parameter_tuning():
     with torch.no_grad():
         reconstructions = best_model(x_test_data_tensor)
         errors = torch.mean((reconstructions - x_test_data_tensor) ** 2, dim=1).numpy()
-
-    thresholds = np.linspace(errors.min(), errors.max(), 100)
-    best_f1 = 0
-    best_threshold = None
-    best_precision = 0
-    best_recall = 0
-
-    # Try multiple thresholds
-    for t in thresholds:
-        preds = (errors > t).astype(int)
-        f1 = f1_score(test_labels, preds)
-        precision = precision_score(test_labels, preds)
-        recall = recall_score(test_labels, preds)
-        if f1 > best_f1:
-            best_f1 = f1
-            best_threshold = t
-            best_precision = precision
-            best_recall = recall
 
     print(f"Best Parameters: {best_params}, Best F1: {best_f1}")
     print(f"Best Validation Loss: {best_val_loss:.4f}, reconstruction error: {errors}")

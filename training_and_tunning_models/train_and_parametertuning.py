@@ -14,28 +14,31 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier,
 # Define models and their hyperparameter grids 💫
 models_and_parameters = {
     "Naive Bayes": (MultinomialNB(), {
-        'alpha': [0.1, 0.5, 1.0]
+        'alpha': [0.01, 0.1, 0.5, 1.0, 10]
     }),
     "Random Forest": (RandomForestClassifier(), {
         'n_estimators': [50, 100, 200],
-        'max_depth': [None, 10, 20]
+        'max_depth': [None, 10, 20],
+        'max_features': ['sqrt', 'log2']
     }),
     "Gradient Boost": (GradientBoostingClassifier(), {
         'n_estimators': [50, 100],
         'learning_rate': [0.01, 0.1, 0.2],
-        'max_depth': [3, 5]
+        'max_depth': [3, 5, 7, 10]
     }),
     "AdaBoost": (AdaBoostClassifier(), {
-        'n_estimators': [50, 100],
+        'n_estimators': [50, 100, 200],
         'learning_rate': [0.01, 0.1, 1.0]
     }),
-    "Logistic Regression": (LogisticRegression(max_iter=1000), {
+    "Logistic Regression": (LogisticRegression(), {
         'C': [0.01, 0.1, 1, 10],
-        'solver': ['liblinear', 'lbfgs']
+        'solver': ['liblinear', 'lbfgs'],
+        'max_iter': [100, 200, 500]
     }),
     "KNN": (KNeighborsClassifier(), {
-        'n_neighbors': [3, 5, 7],
-        'weights': ['uniform', 'distance']
+        'n_neighbors': [3, 5, 7, 9, 11],
+        'weights': ['uniform', 'distance'],
+        'metric': ['euclidean', 'manhattan', 'minkowski']
     })
 }
 
@@ -57,7 +60,7 @@ def train_model():
     # Split your dataset using the vectorized features
     x_train_vec, x_test_vec, y_train, y_test = train_test_split(
         x_vectorized, y, test_size=0.1, random_state=225, stratify=y
-    )
+    ) # splited the dataset into 90% training and 10% testing
 
     # Store the best models after tuning ✨
     best_models = {}
@@ -81,12 +84,20 @@ def train_model():
         y_pred = grid.predict(x_test_vec)
         report = classification_report(y_test, y_pred, output_dict=True)
         # print(f"📊 Performance for {name}:\n{classification_report(y_test, y_pred)}")
+        
+        # Extract mean validation accuracy for each parameter combination
+        mean_val_scores = grid.cv_results_['mean_test_score']
+        params_list = grid.cv_results_['params']
+        param_scores = [
+            {"params": params, "mean_val_accuracy": score}
+            for params, score in zip(params_list, mean_val_scores)
+        ]
 
-        # Save all results and parameters
         all_results.append({
             "model": name,
             "best_params": grid.best_params_,
             "cv_results": grid.cv_results_,
+            "param_scores": param_scores,
             "classification_report": report
         })
 

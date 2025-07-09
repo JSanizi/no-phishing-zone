@@ -23,7 +23,6 @@ def sending_emails():
 
     # Load your dataset
     dataset = pd.read_csv('datasets/CEAS_08.csv')
-    #dataset = pd.read_csv('datasets/SpamAssasin.csv')
     dataset = dataset.dropna(subset=['subject', 'body'])
 
     # Shuffle the dataset
@@ -33,59 +32,70 @@ def sending_emails():
     print("How many emails do you want to send? \n")
     MAX_EMAILS = int(input("Enter the number of emails to send: "))
 
+    if MAX_EMAILS == 0:
+        print("✨ No emails to send. Starting to filter emails... ☕💖")
+        return
+
     emails_sent = 0
     email_number = 1
     spam_count = 0
     non_spam_count = 0
 
-    def send_email(subject, plain_body, html_body, spoofed_sender, receiver, label):
+    def send_email(subject, plain_body, html_body, spoofed_sender, receiver, label, email_number):
         msg = MIMEMultipart('alternative')
         msg['From'] = spoofed_sender
         msg['To'] = receiver
         msg['Subject'] = subject
         msg.add_header("X-Spam-Label", str(label))
-
         msg.attach(MIMEText(plain_body, 'plain'))
-
         if pd.notna(html_body) and html_body.strip() != '':
             msg.attach(MIMEText(html_body, 'html'))
-
         try:
             with smtplib.SMTP(smtp_server, smtp_port) as server:
                 server.starttls()
                 server.login(sender_email_login, password)
                 server.sendmail(sender_email_login, receiver, msg.as_string())
-                print(f"🌈 Email {email_number} sent as [{spoofed_sender}] to {receiver} — Label: {label}")
+            print(f"🌈 Email {email_number} sent as [{spoofed_sender}] to {receiver} — Label: {label}")
+            return True  # Sending succeeded
         except Exception as e:
             print(f"💔 Error sending email: {e}")
-        
+            return False  # Sending failed
+
 
     # 🌸 Email loop with limit
-    for index, row in dataset.iterrows():
-        if emails_sent >= MAX_EMAILS:
-            print("✨ Limit reached☕💖")
-            print(f"✨ Total spam emails sent: {spam_count}")
-            print(f"✨ Total non-spam emails sent: {non_spam_count}")
-            print("✨ Waiting for 30 seconds to make sure all emails are sent and received...")
-            # wait for 30 seconds before exiting
-            time.sleep(30)
-            break
-
+    row_index = 0
+    while emails_sent < MAX_EMAILS and row_index < len(dataset):
+        row = dataset.iloc[row_index]
         subject = row.get('subject', 'No subject')
         plain_body = row.get('body', 'No body content')
         html_body = row.get('html_body', '')  # Optional HTML version
         spoofed_sender = row.get('sender', 'unknown@phish.com')
         label = row.get('label', 1)
-
-        send_email(subject, plain_body, html_body, spoofed_sender, receiver_email, label)
-        emails_sent += 1
-        email_number += 1
-
-        if label == 1:
-            spam_count += 1
+        
+        success = send_email(subject, plain_body, html_body, spoofed_sender, receiver_email, label, email_number)
+        row_index += 1  # Move to the next row regardless
+        
+        if success:
+            emails_sent += 1
+            email_number += 1  # Only increment email_number if the email was sent successfully
+            if label == 1:
+                spam_count += 1
+            else:
+                non_spam_count += 1
         else:
-            non_spam_count += 1
+            print(f"Retrying email number {email_number} with the next available email...")
     
+    print("✨ Limit reached☕💖")
+    print(f"✨ Total spam emails sent: {spam_count}")
+    print(f"✨ Total non-spam emails sent: {non_spam_count}")
+    # wait for 30 seconds before exiting
+    if emails_sent >= 50:
+        print("✨ Waiting for 90 seconds to make sure all emails are sent and received...")
+        time.sleep(90)
+    else:
+        print("✨ Waiting for 30 seconds to make sure all emails are sent and received...")
+        time.sleep(30)    
+
     get_sent_emails_list(emails_sent, dataset)
     
 

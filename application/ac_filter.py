@@ -37,7 +37,7 @@ def find_threshold_non_spam(autoencoder, email_text_tensor):
     non_spam_errors = [reconstruction_errors[i] for i in range(len(y_true)) if y_true[i] == 'Non-Spam']
     non_spam_errors.sort()
     threshold = round(non_spam_errors[int(len(non_spam_errors) * 0.95)], 6)  # 95th percentile of non-spam errors, rounded to 6 digits
-    print(f"🔍 Using threshold: {threshold:.6f}")
+    # print(f"🔍 Using threshold: {threshold:.6f}")
     
     return threshold
     
@@ -109,9 +109,9 @@ def run_autoencoder(preprocessed_emails):
     pred_email_df.to_csv('email_labels/Autoencoder_predicted_sent_emails.csv', index=False)
 
 
-    print(f"\n📊 Summary:")
-    print(f"🚨 Spam emails: {spam_count}")
-    print(f"✅ Non-spam emails: {non_spam_count}")
+    # print(f"\n📊 Summary:")
+    # print(f"🚨 Spam emails: {spam_count}")
+    # print(f"✅ Non-spam emails: {non_spam_count}")
 
     calculate_accuracy(reconstruction_errors, threshold)
 
@@ -125,10 +125,6 @@ def calculate_accuracy(reconstruction_errors, threshold):
     y_true = y_true_df['true_label'].values
     y_pred = y_pred_df['label'].values
 
-
-    accuracy = np.mean(y_true == y_pred) * 100
-    # print(f"\n📈 Accuracy: {accuracy:.2f}%")
-
     """# show confusion matrix.
     print("\n📊 Confusion Matrix for Autoencoder:")
     print(confusion_matrix(y_true, y_pred))
@@ -140,20 +136,21 @@ def calculate_accuracy(reconstruction_errors, threshold):
     TN, FP, FN, TP = cm.ravel()  # Extract values from the confusion matrix
     plt.figure(figsize=(10, 5))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Non-Spam', 'Spam'], yticklabels=['Non-Spam', 'Spam'])
-    plt.title('Confusion Matrix')
+    plt.title(f'Confusion Matrix with {len(y_true)} emails\n')
     plt.xlabel('Predicted')
     plt.ylabel('True')
 
-    if os.path.exists('graphs/confusion/Autoencoder_confusion_matrix.png'):
-        os.remove('graphs/confusion/Autoencoder_confusion_matrix.png')
-    plt.savefig('graphs/confusion/Autoencoder_confusion_matrix.png')
+    if os.path.exists(f'graphs/confusion/{len(y_true)}_emails/autoencoder_confusion_matrix.png'):
+        os.remove(f'graphs/confusion/{len(y_true)}_emails/autoencoder_confusion_matrix.png')
+    plt.savefig(f'graphs/confusion/{len(y_true)}_emails/autoencoder_confusion_matrix.png')
     plt.close()
 
     # Save the classification report as a text file
-    if os.path.exists(f'graphs/classification_reports/autoencoder_classification_report.txt'):
-        os.remove(f'graphs/classification_reports/autoencoder_classification_report.txt')
+    if os.path.exists(f'graphs/classification_reports/{len(y_true)}_emails/autoencoder_classification_report.txt'):
+        os.remove(f'graphs/classification_reports/{len(y_true)}_emails/autoencoder_classification_report.txt')
 
     report = classification_report(y_true, y_pred, target_names=['Non-Spam', 'Spam'], zero_division=0)
-    with open(f'graphs/classification_reports/autoencoder_classification_report.txt', 'w') as f:
+    with open(f'graphs/classification_reports/{len(y_true)}_emails/autoencoder_classification_report.txt', 'w') as f:
+        f.write(f'Amount of emails: {len(y_true)}\n')
         f.write(report)
     print(f"📄 Classification report saved as autoencoder_classification_report.txt")
