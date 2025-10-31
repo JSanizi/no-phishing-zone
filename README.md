@@ -71,22 +71,20 @@ After comprehensive testing, **Random Forest** and **Logistic Regression** achie
 pip install -r requirements.txt
 ```
 
-### If you don't have a requirements.txt yet:
-
-```bash
-pip install pandas numpy scikit-learn matplotlib seaborn tensorflow
-```
-
 
 ## 🚀 Usage  
 
-step-by-step on how to run your scripts:
+Step-by-step on how to run your scripts:
 
 ```bash
-cd src
-python data_preprocess.py
-python train.py
-python email_filter.py
+# 1️⃣ Preprocess the datasets
+python training_and_tunning_models/data_preprocessing.py
+
+# 2️⃣ Train and tune models
+python training_and_tunning_models/train_and_parametertuning.py
+
+# 3️⃣ Run the spam filter application
+python application/ac_filter.py
 ```
 
 ## 📊 Evaluation Metrics  
@@ -105,19 +103,32 @@ Models are evaluated with **Accuracy**, **Precision**, **Recall**, **Weighted F1
 
 ---
 
-## 🧩 Repository Structure  
+## 🧩 Repository Structure
 
 ```text
 no-phishing-zone/
-├── data/
-├── models/
-├── src/
-│   ├── data_preprocess.py
-│   ├── train.py
+├── application/
+│   ├── ac_filter.py
+│   ├── connect_to_email.py
+│   └── sending_mail.py
+│
+├── tests/
+│   ├── test_integration.py
+│   └── test_unit.py
+│
+├── training_and_tunning_models/
+│   ├── ac_parameter_tuning.py
 │   ├── autoencoder.py
-│   ├── email_filter.py
-│   └── utils.py
-└── reports/
+│   ├── data_preprocessing.py
+│   ├── parametertuning_table.py
+│   ├── split_data.py
+│   └── train_and_parametertuning.py
+│
+├── spam_filter.py
+├── start_parametertuning.py
+├── .gitattributes
+├── .gitignore
+└── README.md
 ```
 
 ## 📬 Contact
